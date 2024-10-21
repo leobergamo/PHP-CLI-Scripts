@@ -17,18 +17,24 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 
 
 
+	// yes! I know my namespace and filenames are VERY long but I struggle to be succinct!
+
+
+
+
+
 	// perform runtime check...
 	echo "\n* performing runtime check...\n";
-	if ( // argument count is improper or zero...
+	if ( // argument count is more than one (indice 0 is ignored)...
 		count($argv) > 2
 	) {
 
-		echo "\n- improper amount of arguments given, expecting none or optional; abort!\n";
-		echo "\tSyntax: updateBlacklist.php ([post-addition command line])...";
+		echo "\n- improper amount of arguments given, expecting none or 1 optional; abort!\n";
+		echo "\tSyntax: mdlBlockListOfBadIpsTryingToConnectToApacheServer.php ([post-addition command line])...";
 		exit(1);
 	}
 
-	if ( // config file and mdlGetIpFromApacheLogRecsContaining.php script viable...
+	if ( // config file or helper script is not viable...
 		(
 			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
 			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
@@ -39,7 +45,7 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
 		)
 	) {
-		echo "- configuration file and or helper script not viable; abort!\n";
+		echo "- configuration file and or helper script is not viable; abort!\n";
 		exit(1);
 	}
 
