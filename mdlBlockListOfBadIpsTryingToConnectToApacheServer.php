@@ -5,8 +5,6 @@ declare(strict_types=1);
 
 namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApacheServer {
 
-	// fyi: command line to reset iptables to stock: iptables-save | awk '/^[*]/ { print $1 } /^:[A-Z]+ [^-]/ { print $1 " ACCEPT" ; } /COMMIT/ { print $0; }' | iptables-restore
-
 
 
 
@@ -16,8 +14,9 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 
 
 
-
-	// yes! I know my namespace and filenames are VERY long but I struggle to be succinct!
+	
+	// FYI: command line to reset iptables to stock: iptables-save | awk '/^[*]/ { print $1 } /^:[A-Z]+ [^-]/ { print $1 " ACCEPT" ; } /COMMIT/ { print $0; }' | iptables-restore
+	// Yes! I know my namespace and filenames are VERY long but I struggle to be succinct! In time they will be reduced...
 
 
 
@@ -39,10 +38,10 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
 			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
 			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
-		) && (
-			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
-			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
-			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
+		) || (
+			!file_exists('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') ||
+			!is_readable('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') ||
+			filesize('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') === 0
 		)
 	) {
 		echo "- configuration file and or helper script is not viable; abort!\n";
