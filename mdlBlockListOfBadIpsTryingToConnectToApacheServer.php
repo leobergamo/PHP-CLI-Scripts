@@ -7,7 +7,18 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 
 	// fyi: command line to reset iptables to stock: iptables-save | awk '/^[*]/ { print $1 } /^:[A-Z]+ [^-]/ { print $1 " ACCEPT" ; } /COMMIT/ { print $0; }' | iptables-restore
 
+
+
+
+
+	date_default_timezone_set("America/Detroit");
+
+
+
+
+
 	// perform runtime check...
+	echo "\n* performing runtime check...\n";
 	if ( // argument count is improper or zero...
 		count($argv) > 2
 	) {
@@ -19,55 +30,50 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 
 	if ( // config file and mdlGetIpFromApacheLogRecsContaining.php script viable...
 		(
-			file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') &&
-			is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') &&
-			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml')
+			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
+			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
+			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
 		) && (
-			file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') &&
-			is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') &&
-			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml')
+			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
+			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
+			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
 		)
 	) {
-		// declare globals...
+		echo "- configuration file and or helper script not viable; abort!\n";
+		exit(1);
+	}
 
-		function checkIfBlockedUsingNetfilter(string $_strIp): bool
-		{
-			(string) $_strOutput = shell_exec(
-				"/usr/sbin/iptables -S"
-			);
 
-			if (
-				strstr(
-					$_strOutput,
-					$_strIp
-				)
-			) {
-				return true;
-			} else {
-				return false;
-			}
+
+
+
+	// declare...
+	echo "\n* intializing...\n";
+	function checkIfBlockingNetfilterExistForIp(string $_strIp): bool
+	{
+		(string) $_strOutput = shell_exec(
+			"/usr/sbin/iptables -S"
+		);
+
+		if (
+			strstr(
+				$_strOutput,
+				$_strIp
+			)
+		) {
+			return true;
+		} else {
+			return false;
 		}
+	}
 
-
-		function blockIpUsingNetfilter(string $_strIp): bool
-		{
-			if (
-				(int)shell_exec(
-					"/usr/sbin/iptables -A INPUT -s {$_strIp} -j DROP > /dev/null 2>&1;echo $?"
-				) === 0
-			) {
-				if (
-					(int)shell_exec(
-						"/usr/sbin/service netfilter-persistent save > /dev/null 2>&1;echo $?"
-					) === 0
-				) {
-					return true;
-				} else return false;
-			} else return false;
-		}
-
-		function saveNetfilters(): bool
-		{
+	function CreateBlockingNetfilterForIp(string $_strIp): bool
+	{
+		if (
+			(int)shell_exec(
+				"/usr/sbin/iptables -A INPUT -s {$_strIp} -j DROP > /dev/null 2>&1;echo $?"
+			) === 0
+		) {
 			if (
 				(int)shell_exec(
 					"/usr/sbin/service netfilter-persistent save > /dev/null 2>&1;echo $?"
@@ -75,175 +81,199 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 			) {
 				return true;
 			} else return false;
-		}
+		} else return false;
+	}
+
+	function saveNetfilters(): bool
+	{
+		if (
+			(int)shell_exec(
+				"/usr/sbin/service netfilter-persistent save > /dev/null 2>&1;echo $?"
+			) === 0
+		) {
+			return true;
+		} else return false;
+	}
+
+	$mxdFh = false;
+	(array) $strWriteMode     = "";
+	(array) $arrOldFileBuffer = array();
+	(array) $arrNewFileBuffer = array();
+	(array) $arrBlockedIPs    = array();
+	(array) $arrNewAdditions  = array();
+	(array) $arrBadIPs        = array();
+	(string) $strLineBuffer   = "";
+	(object) $objConfigRoot   = null;
+	(object) $objConfigPaths  = null;
+	(bool)   $boolChangesMade = false;
 
 
-		$mxdFh = false;
-		(array) $arrOldFileBuffer = array();
-		(array) $arrNewFileBuffer = array();
-		(array) $arrBlockedIPs = array();
 
-		try {
 
-			echo "\n\n* generating list of bad IPs from Apache error and access logs...";
-			(array) $arrBadIPs   = array_merge(
-				json_decode(
-					shell_exec(
-						"/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php cgi-bin access"
-					),
-					true
-				),
-				json_decode(
-					shell_exec(
-						"/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php cgi-bin error"
-					),
-					true
-				)
-			);
-		} catch (\Exception $objEx) {
 
-			echo "- Failed to generate list; abort!";
-			exit(1);
-		}
+	// main
+	try {
 
-		(string) $strLineBuffer   = "";
-		(object) $objConfigRoot   = new \SimpleXMLElement(
+		$objConfigRoot   = new \SimpleXMLElement(
 			file_get_contents(
 				'/opt/scripts/PHP/assets/etc/discrete/ast/config.xml'
 			)
 		);
-		(object) $objConfigPaths = $objConfigRoot->main->paths;
-		(bool)   $boolChangesMade = false;
 
-		if (
-			$mxdFh = fopen(
-				$objConfigPaths->apache_ip_blacklist->__toString(),
-				'a+'
+		$objConfigPaths = $objConfigRoot->main->paths;
+
+		$arrBadIPs   = array_merge(
+			json_decode(
+				shell_exec(
+					"/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php cgi-bin access"
+				),
+				true
+			),
+			json_decode(
+				shell_exec(
+					"/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php cgi-bin error"
+				),
+				true
 			)
-		) { // can open IP blacklist...
+		);
+	} catch (\Exception $objEx) {
 
-			echo "\n\n* generating list from Apache IP blacklist of known bad IPs...";
-			while (
-				!feof(
-					$mxdFh
+		echo "{$objEx->getMessage()}; abort!";
+		exit(1);
+	}
+
+	echo "\n* generating list of known bad IPs from Apache IP blacklist...\n";
+	if (
+		file_exists($objConfigPaths->apache_ip_blacklist->__toString()) &&
+		filesize($objConfigPaths->apache_ip_blacklist->__toString()) > 0 &&
+		$mxdFh = fopen(
+			$objConfigPaths->apache_ip_blacklist->__toString(),
+			'r'
+		)
+	) { // Apache IP blacklist exist, is not empty and can be open for read...
+
+		while (
+			!feof(
+				$mxdFh
+			)
+		) {
+
+			$strLineBuffer = fgets($mxdFh);
+
+			if (
+				$strLineBuffer &&
+				!strstr($strLineBuffer, '#')
+			) {
+
+				$arrOldFileBuffer[] = str_replace(
+					["\n", "\r"],
+					["", ""],
+					$strLineBuffer
+				);
+			}
+		}
+
+		$strWriteMode = 'a';
+		fclose($mxdFh);
+	} else { // can not open IP blacklist for read; abort!
+
+		$strWriteMode = 'w+';
+		echo "- unable to read Apache IP blacklist; it doesn't exist...\n";
+	}
+
+
+
+
+
+	echo "\n* processing...\n";
+	if (
+		$mxdFh = fopen(
+			$objConfigPaths->apache_ip_blacklist->__toString(),
+			$strWriteMode
+		)
+	) { // can open Apache IP blacklist for write...
+
+		foreach (
+			$arrBadIPs as $strBadIP
+		) {
+
+			echo "\n\t* is bad IP: '{$strBadIP}' from logs recognized:  ";
+
+			if (
+				!in_array(
+					"Require not ip {$strBadIP}",
+					$arrOldFileBuffer
+				) && !in_array(
+					"Require not ip {$strBadIP}",
+					$arrNewAdditions
 				)
 			) {
 
-				$strLineBuffer = fgets($mxdFh);
-
-				if (
-					$strLineBuffer &&
-					!strstr($strLineBuffer, '#')
-				) {
-
-					$arrOldFileBuffer[] = str_replace(
-						["\n", "\r"],
-						["", ""],
-						$strLineBuffer
-					);
-				}
-			}
-
-			echo "\n\n* comparing items on former to the latter...\n";
-			foreach (
-				$arrBadIPs as $strBadIP
-			) {
-
-				echo "\n\t* is bad IP: '{$strBadIP}' recognized:  ";
-
-				if (
-					!empty($arrOldFileBuffer)
-				) {
-
-					if (
-						!in_array(
-							"Require not ip {$strBadIP}",
-							$arrOldFileBuffer
-						)
-					) {
-
-						echo "no\n";
-						echo "\t\t* does netfilter rule exist: ";
-						if (!checkIfBlockedUsingNetfilter($strBadIP)) {
-							echo "no\n";
-							echo "\t\t* creating netfilter rule which will block this IP: " .
-								((blockIpUsingNetfilter($strBadIP) === true) ? "ok\n" : "fail\n");
-						} else echo "yes\n";
-						echo "\t\t* adding this IP to Apache blacklist: " .
-							((fwrite($mxdFh, "Require not ip {$strBadIP}\n") !== false) ? "ok\n" : "fail\n");
-						$boolChangesMade = true;
-					} else {
-
-						echo "yes\n";
-						echo "\t\t* does netfilter rule exist: ";
-						if (!checkIfBlockedUsingNetfilter($strBadIP)) {
-							echo "no\n";
-							echo "\t\t* creating netfilter rule which will block this IP: " .
-								((blockIpUsingNetfilter($strBadIP) === true) ? "ok\n" : "fail\n");
-						} else echo "yes\n";
-					}
-				} else {
-
+				echo "no\n";
+				echo "\t\t* does netfilter rule exist: ";
+				if (!checkIfBlockingNetfilterExistForIp($strBadIP)) {
 					echo "no\n";
-					echo "\t\t* does netfilter rule exist: ";
-					if (!checkIfBlockedUsingNetfilter($strBadIP)) {
-						echo "no\n";
-						echo "\t\t* creating netfilter rule which will block this IP: " .
-							((blockIpUsingNetfilter($strBadIP) === true) ? "ok\n" : "fail\n");
-					} else echo "yes\n";
-					echo "\t\t* adding this IP to Apache blacklist: " .
-						((fwrite($mxdFh, "Require not ip {$strBadIP}\n") !== false) ? "ok\n" : "fail\n");
-					$boolChangesMade = true;
-				}
+					echo "\t\t* creating netfilter rule which will block this IP: " .
+						((CreateBlockingNetfilterForIp($strBadIP) === true) ? "ok\n" : "fail\n");
+				} else echo "yes\n";
+				echo "\t\t* adding this IP to Apache blacklist: " .
+					((fwrite($mxdFh, "# added: " . date("Y-m-d H:i:s") . "\nRequire not ip {$strBadIP}\n") !== false) ? "ok\n" : "fail\n");
+				$arrNewAdditions[] = "Require not ip {$strBadIP}";
+				$boolChangesMade = true;
+			} else {
+
+				echo "yes\n";
+				echo "\t\t* does netfilter rule exist: ";
+				if (!checkIfBlockingNetfilterExistForIp($strBadIP)) {
+					echo "no\n";
+					echo "\t\t* creating netfilter rule which will block this IP: " .
+						((CreateBlockingNetfilterForIp($strBadIP) === true) ? "ok\n" : "fail\n");
+				} else echo "yes\n";
 			}
+		}
 
-			fclose($mxdFh);
+		fclose($mxdFh);
+	} else { // can not open IP blacklist for write; abort!
 
-			if (
-				$boolChangesMade
-			) {
+		echo "\n- unable to write to Apache IP blacklist; abort!\n";
+		exit(1);
+	}
 
-				echo "\n\n* bad IP(s) added to Apache IP blacklist and relative netfilter rules established...\n";
-				/*
+
+
+
+
+	// finish up...
+	echo "\n* finishing up...\n\n";
+	if (
+		$boolChangesMade
+	) {
+
+		echo "\t* " . count($arrNewAdditions) . " bad IP(s) added to Apache IP blacklist and relative netfilter rules established...\n";
+		/*
 				echo "* restarting Apache server: " .
 					(((int)shell_exec('/usr/bin/systemctl restart apache2 > /dev/null 2>&1; echo $?') === 0) ? "ok\n" : "fail\n");
 				*/
-				echo "* saving netfilter rules: " .
-					((saveNetfilters() === true) ? "ok\n" : "fail\n");
-				echo "* note: Apache IP blacklist can be found at '{$objConfigPaths->apache_ip_blacklist->__toString()}'...\n";
-				echo "* tip: Manually restart or create crontab entry to restart Apache server service during off peak times to implement Apache IP blacklist...\n";
-				if (count($argv) === 2) {
-					echo "* executing optional post-addition command line: '{$argv[1]}'...\n\n";
-					echo "----------COMMAND OUTPUT---------\n";
-					echo shell_exec("/usr/bin/bash -c '{$argv[1]}'");
-					echo "---------------------------------\n\n";
-				} else echo "* executing optional post-addition command line: [ not specified ]...\n";
-				echo "* setting ownership of Apache blacklist: " .
-					(((int)shell_exec('/usr/bin/chown www-data:www-data /etc/apache_ip_blacklist > /dev/null 2>&1; echo $?') === 0) ? "ok\n" : "fail\n");
-				echo "* setting permissions of Apache blacklist: " .
-					(((int)shell_exec('/usr/bin/chmod 775 /etc/apache_ip_blacklist > /dev/null 2>&1; echo $?') == 0) ? "ok\n" : "fail\n");
-				echo "* done...\n\n";
-				exit(0);
-			} else {
+		echo "\t* saving netfilter rules: " .
+			((saveNetfilters() === true) ? "ok\n" : "fail\n");
+		echo "\t* note: Apache IP blacklist can be found at '{$objConfigPaths->apache_ip_blacklist->__toString()}'...\n";
+		echo "\t* tip: Manually restart or create crontab entry to restart Apache server service during off peak times to implement Apache IP blacklist...\n";
+		if (count($argv) === 2) {
+			echo "\t* executing optional post-addition command line: '{$argv[1]}'...\n";
+			shell_exec("/usr/bin/bash -c '{$argv[1]}'");
+		} else echo "\t* executing optional post-addition command line: [ not specified ]...\n";
+		echo "\t* setting ownership of Apache blacklist: " .
+			(((int)shell_exec('/usr/bin/chown www-data:www-data /etc/apache_ip_blacklist > /dev/null 2>&1; echo $?') === 0) ? "ok\n" : "fail\n");
+		echo "\t* setting permissions of Apache blacklist: " .
+			(((int)shell_exec('/usr/bin/chmod 775 /etc/apache_ip_blacklist > /dev/null 2>&1; echo $?') == 0) ? "ok\n" : "fail\n");
+		echo "\n* done...\n\n";
+		exit(0);
+	} else {
 
-				echo "\n\n* no new bad IPs found...\n";
-				echo "* note: Apache IP blacklist can be found at '{$objConfigPaths->apache_ip_blacklist->__toString()}'...\n";
-				echo "* tip: Manually restart or create crontab entry to restart Apache server service during off peak times to implement Apache IP blacklist...\n";
-				echo "* done...\n\n";
-				exit(0);
-			}
-		} else { // can not open IP blacklist; abort!
-
-
-			echo "\n- unable to access IP blacklist; abort!\n";
-			exit(1);
-		}
-
-	} else { //  config file and or mdlGetIpFromApacheLogRecsContaining.php script not viable; abort!
-
-		echo "- configuration file and or helper script not viable; abort!\n";
-		exit(1);
-
+		echo "\t* no new bad IPs found...\n";
+		echo "\t* note: Apache IP blacklist can be found at '{$objConfigPaths->apache_ip_blacklist->__toString()}'...\n";
+		echo "\t* tip: Manually restart or create crontab entry to restart Apache server service during off peak times to implement Apache IP blacklist...\n";
+		echo "\n* done...\n\n";
+		exit(0);
 	}
-
 }
