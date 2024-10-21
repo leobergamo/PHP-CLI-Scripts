@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config>
+    <main>
+        <paths>
+            <apache_access_log>/var/log/apache2/leobergamo_access.log</apache_access_log>
+            <apache_error_log>/var/log/apache2/leobergamo_error.log</apache_error_log>
+            <apache_ip_blacklist>/etc/apache_ip_blacklist</apache_ip_blacklist>
+        </paths>
+    </main>
+</config>
