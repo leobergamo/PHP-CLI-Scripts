@@ -10,10 +10,8 @@ namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApac
 
 
 	date_default_timezone_set("America/Detroit");
-	require_once('/opt/scripts/PHP/assets/bin/common/classes/clsUtilities.php');
 	require_once('/opt/scripts/PHP/assets/bin/discrete/ast/classes/clsUtilities.php');
 
-	use assets\bin\common\classes\utilities as comUtil;
 	use assets\bin\discrete\ast\classes\utilities as astUtil;
 
 	define('HOME_PATH', '/opt/scripts/PHP/assets/bin/discrete/ast/modules');
