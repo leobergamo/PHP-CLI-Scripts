@@ -10,11 +10,12 @@ namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 
 
 	date_default_timezone_set("America/Detroit");
-	require_once('/opt/scripts/PHP/assets/bin/discrete/ast/classes/clsUtilities.php');
+	define('BIN_ROOT', '/opt/scripts/PHP/assets/bin/discrete/ast');
+	define('ETC_ROOT', '/opt/scripts/PHP/assets/etc/discrete/ast');
+	require_once(BIN_ROOT . '/classes/clsUtilities.php');
 
 	use assets\bin\discrete\ast\classes\utilities as astUtil;
 
-	define('HOME_PATH', '/opt/scripts/PHP/assets/bin/discrete/ast/modules');
 
 
 
@@ -42,11 +43,7 @@ namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 		(
 			!file_exists('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
 			!is_readable('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') ||
-			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0
-		) || (
-			!file_exists('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') ||
-			!is_readable('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') ||
-			filesize('/opt/scripts/PHP/assets/bin/discrete/ast/modules/mdlExtractIpFromApacheLogRecsContainingString.php') === 0
+			filesize('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml') === 0		
 		)
 	) {
 		echo "- unable to load configuration file, it may not exist or is empty; abort!\n";
@@ -126,11 +123,11 @@ namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 	// main
 	$objConfig   = new \SimpleXMLElement(
 		file_get_contents(
-			'/opt/scripts/PHP/assets/etc/discrete/ast/config.xml'
+			ETC_ROOT . '/config.xml'
 		)
 	);
 	$objPaths = $objConfig->main->paths;
-	astUtil::init('/opt/scripts/PHP/assets/etc/discrete/ast/config.xml');
+	astUtil::init(ETC_ROOT . '/config.xml');
 
 	echo "\n* scanning Apache logs...\n";
 	if (
@@ -145,7 +142,7 @@ namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 		)
 	) {
 		$arrBadIPs = array_merge($arrBadIpsFromAccessLog, $arrBadIpsFromAccessLog);
-		echo "+ found " . count($arrBadIPs) . " bad IP(s)...\n";
+		echo "+ found " . count($arrBadIPs) . " matching record(s)...\n";
 	} else {
 		echo "- no results found in either Apache log; abort!\n";
 		exit(1);
@@ -182,7 +179,7 @@ namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 			}
 		}
 
-		echo "+ found " . count($arrOldFileBuffer) . " record(s)...\n";
+		echo "+ found " . count($arrOldFileBuffer) . " existing record(s)...\n";
 		$strWriteMode = 'a';
 		fclose($mxdFh);
 	} else { // can not open IP blacklist for read; abort!
