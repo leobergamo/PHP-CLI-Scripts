@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-namespace assets\bin\discrete\ast\modules\blockListOfBadIpsTryingToConnectToApacheServer {
+namespace assets\bin\discrete\ast\modules\scanForAndBlockBadIPs {
 
 
 
